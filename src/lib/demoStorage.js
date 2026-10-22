@@ -14,7 +14,7 @@ export function readStored(key, fallback, validate) {
     if (!validate(value)) throw new Error('Invalid data')
     return value
   } catch {
-    throw new Error('Saved demo data could not be read. Clear this site’s demo data in browser settings to restart.')
+    throw new Error('Saved demo data could not be read. The stored data has not been changed. Back it up before repairing it.')
   }
 }
 

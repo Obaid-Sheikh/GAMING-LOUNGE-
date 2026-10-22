@@ -23,13 +23,13 @@ export const stations = [
   { id: 'room-01', zoneId: 'entertainment', name: 'Private entertainment room', rate: 350, capacity: 6, games: [], active: true, amenities: ['Group seating for up to 6', 'Shared display', 'Netflix-style watch session'] },
 ]
 
-export const money = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
+export const money = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: Number.isInteger(amount) ? 0 : 2, maximumFractionDigits: 2 }).format(amount)
 
 // Maintenance is separate from interval-derived reservation availability.
 export const stationMaintenance = [{ stationId: 'pc-02', reason: 'Demo equipment servicing' }]
 
 // Recurring demo reservations are expanded for the selected date, never written over customer records.
 export const reservationFixtures = stations.filter((station) => station.active).flatMap((station) => [
-  { stationId: station.id, hour: 12, duration: 1, status: 'confirmed', paymentStatus: station.id.endsWith('01') ? 'paid' : 'pending', foodIds: station.id === 'ps-01' ? ['fries', 'cold-coffee'] : [], foodOrderStatus: station.id === 'ps-01' ? 'pending' : undefined },
-  ...(station.id.endsWith('02') ? [{ stationId: station.id, hour: 14, duration: 1, status: 'pending' }] : []),
+  { stationId: station.id, hourlyRate: station.rate, hour: 12, duration: 1, status: 'confirmed', paymentStatus: station.id.endsWith('01') ? 'paid' : 'pending', foodIds: station.id === 'ps-01' ? ['fries', 'cold-coffee'] : [], foodOrderStatus: station.id === 'ps-01' ? 'pending' : undefined },
+  ...(station.id.endsWith('02') ? [{ stationId: station.id, hourlyRate: station.rate, hour: 14, duration: 1, status: 'pending' }] : []),
 ])

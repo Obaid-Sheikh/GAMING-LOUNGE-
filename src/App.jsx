@@ -11,6 +11,8 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import MyBookingsPage from './pages/MyBookingsPage'
 import BookingConfirmationPage from './pages/BookingConfirmationPage'
+import AdminStationsPage from './pages/admin/AdminStationsPage'
+import AdminBookingsPage from './pages/admin/AdminBookingsPage'
 import AdminLayout from './components/admin/AdminLayout'
 import AdminOverviewPage from './pages/admin/AdminOverviewPage'
 import AdminFloorPage from './pages/admin/AdminFloorPage'
@@ -43,6 +45,8 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminOverviewPage />} />
           <Route path="floor" element={<AdminFloorPage />} />
+          <Route path="stations" element={<AdminStationsPage />} />
+          <Route path="bookings" element={<AdminBookingsPage />} />
           <Route path="bookings/:id" element={<AdminBookingPage />} />
           <Route path="*" element={<AdminUpcomingPage />} />
         </Route>

@@ -2,7 +2,7 @@
 export const adminNavigation = [
   { path: '', label: 'Overview', icon: 'overview' },
   { path: 'floor', label: 'Lounge Floor', icon: 'floor' },
-  ...[['stations', 'Stations & Zones'], ['bookings', 'Bookings'], ['games', 'Games Catalog'], ['food', 'Food & Beverages'], ['orders', 'Orders'], ['payments', 'Payments'], ['customers', 'Customers'], ['settings', 'Settings']].map(([path, label]) => ({ path, label, icon: 'grid', upcoming: true })),
+  ...[['stations', 'Stations & Zones'], ['bookings', 'Bookings'], ['games', 'Games Catalog'], ['food', 'Food & Beverages'], ['orders', 'Orders'], ['payments', 'Payments'], ['customers', 'Customers'], ['settings', 'Settings']].map(([path, label]) => ({ path, label, icon: ({ stations: 'pc', bookings: 'bookings', games: 'console', food: 'food', orders: 'bookings', payments: 'payments', customers: 'customers', settings: 'settings' })[path], upcoming: !['stations', 'bookings'].includes(path) })),
 ]
 export const floorZones = [
   { id: 'playstation', name: 'PlayStation Zone', gridArea: '1 / 1 / 2 / 2', columns: 3 },

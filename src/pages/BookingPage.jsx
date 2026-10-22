@@ -1,3 +1,4 @@
+import useLoungeData from '../hooks/useLoungeData'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import Button from '../components/Button'
@@ -7,13 +8,14 @@ import SessionPicker from '../components/booking/SessionPicker'
 import FoodModal from '../components/booking/FoodModal'
 import BookingSummary from '../components/booking/BookingSummary'
 import { useAuth } from '../context/authContext'
-import { zones } from '../data/catalog'
 import { availability, bookingCandidate, localDate } from '../lib/bookingRules'
 import { reserveDemo } from '../lib/bookingStore'
 import useBookings from '../hooks/useBookings'
 import useNow from '../hooks/useNow'
 
 function BookingForm({ zoneId, onZoneChange, unknownZone }) {
+  const { inventory } = useLoungeData()
+  const { zones } = inventory
   const { user } = useAuth()
   const navigate = useNavigate()
   const { bookings, error: storageError } = useBookings()
@@ -26,8 +28,9 @@ function BookingForm({ zoneId, onZoneChange, unknownZone }) {
   const [previousZone, setPreviousZone] = useState(zoneId)
   const submitting = useRef(false)
   const reviewHeading = useRef(null)
-  const candidate = bookingCandidate(input)
-  const problem = availability(input, bookings, now)
+  const candidate = bookingCandidate(input, inventory)
+  const selectedStation = inventory.stations.find((station) => station.id === input.stationId)
+  const problem = selectedStation && selectedStation.zoneId !== zoneId ? 'This station moved to another zone. Select it again in its new zone.' : selectedStation && input.gameId && !selectedStation.games.includes(input.gameId) ? 'Choose a supported game for this station.' : availability(input, bookings, now, inventory)
 
   // Reset dependent selections when URL navigation changes the zone, while keeping
   // the radio group mounted so keyboard focus survives a zone change.
@@ -51,7 +54,7 @@ function BookingForm({ zoneId, onZoneChange, unknownZone }) {
 
   function change(patch) {
     const next = { ...input, ...patch }
-    if (next.stationId && availability(next, bookings, now)) {
+    if (next.stationId && availability(next, bookings, now, inventory)) {
       next.stationId = ''
       next.gameId = ''
       setError('Your selected station is unavailable for this period. Select an available station.')
@@ -84,10 +87,11 @@ function BookingForm({ zoneId, onZoneChange, unknownZone }) {
 
   return <CustomerPage eyebrow={review ? 'YOUR SESSION / REVIEW' : 'YOUR SESSION / BUILD IT YOUR WAY'} title={review ? 'One last look.' : 'Find your next session.'}>
     {storageError && <p className="form-error" role="alert">{storageError}</p>}
+    {!zones.some((zone) => zone.active && !zone.archived) && <p className="form-error" role="status">No gaming zones are currently available. Please try again later.</p>}
     {unknownZone && <p className="form-error" role="alert">That zone was not found. Choose one of the demo zones below.</p>}
     {review ? <div className="review-layout customer-panel"><div><p className="eyebrow">06 / REVIEW YOUR DEMO BOOKING</p><h2 ref={reviewHeading} tabIndex={-1}>Ready to lock it in?</h2><p className="muted-copy">Check the station and session below. This creates a local demo reservation only.</p><p className="field-hint">Demo cancellation: upcoming sessions can be cancelled in My bookings. No charges or refunds apply.</p><BookingSummary booking={candidate} /><Button variant="secondary" disabled={pending} onClick={() => setFoodOpen(true)}>Edit food and drinks</Button>{(error || problem) && <p role="alert" className="form-error">{error || `${problem}. Edit your selection before confirming.`}</p>}<div className="flex flex-wrap gap-3"><Button disabled={pending || Boolean(problem || storageError)} onClick={confirm}>{pending ? 'Saving demo booking…' : 'Confirm demo reservation'}</Button><Button variant="secondary" disabled={pending} onClick={() => { setReview(false); setError('') }}>Edit selection</Button></div></div></div> : <form onSubmit={openReview} className="booking-layout">
       <div className="booking-fields">
-        <fieldset className="customer-panel"><legend>01 / Select your gaming zone</legend><div className="grid gap-3 sm:grid-cols-2">{zones.map((zone) => <label key={zone.id} className="choice-card"><input type="radio" name="zone" value={zone.id} checked={zoneId === zone.id} required onChange={() => onZoneChange(zone.id)} /><span><strong>{zone.id === 'entertainment' ? 'Private entertainment / Netflix & Chill' : zone.name}</strong><span>{zone.tag}</span></span></label>)}</div></fieldset>
+        <fieldset className="customer-panel"><legend>01 / Select your gaming zone</legend><div className="grid gap-3 sm:grid-cols-2">{zones.filter((zone) => zone.active && !zone.archived).sort((a, b) => a.order - b.order).map((zone) => <label key={zone.id} className="choice-card"><input type="radio" name="zone" value={zone.id} checked={zoneId === zone.id} required onChange={() => onZoneChange(zone.id)} /><span><strong>{zone.name}</strong><span>{zone.tag}</span></span></label>)}</div></fieldset>
         <SessionPicker input={input} onChange={change} now={now} storageError={storageError} />
         <StationPicker zoneId={zoneId} selected={input.stationId} input={input} bookings={bookings} now={now} storageError={storageError} onChange={(stationId, gameId = '') => change({ stationId, gameId })} />
       </div>
@@ -98,6 +102,8 @@ function BookingForm({ zoneId, onZoneChange, unknownZone }) {
 }
 
 export default function BookingPage() {
+  const { inventory } = useLoungeData()
+  const { zones } = inventory
   const [params, setParams] = useSearchParams()
   const zone = params.get('zone') ?? ''
   const zoneId = zones.some((item) => item.id === zone) ? zone : ''

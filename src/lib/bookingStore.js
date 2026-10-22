@@ -1,34 +1,25 @@
-import { AUTH_KEY, BOOKINGS_KEY, readStored, writeStored } from './demoStorage.js'
-import { cancelReservation, createReservation, normalizeBooking, validBookings } from './bookingRules.js'
-
-export const readBookings = () => readStored(BOOKINGS_KEY, [], validBookings).map(normalizeBooking)
-
+import { AUTH_KEY, readStored } from './demoStorage.js'
+import { cancelReservation, createReservation } from './bookingRules.js'
+import { readRepository, transact } from './mockRepository.js'
+export const readBookings = () => readRepository().bookings
 function requireSession(userId) {
   const session = readStored(AUTH_KEY, null, (value) => typeof value?.id === 'string')
-  if (!session || session.id !== userId) throw new Error('Your demo session has ended. Sign in again to continue.')
+  if (!session || session.id !== userId || session.id === 'demo-admin') throw new Error('Your demo session has ended. Sign in again to continue.')
 }
-
-export async function updateBookings(action) {
-  // Serialize cooperating tabs on the same browser origin where Web Locks is supported.
-  // The synchronous fallback only protects the current tab, never a real booking system.
-  const update = () => {
-    const previous = readBookings()
-    const { bookings, result } = action(previous)
-    writeStored(BOOKINGS_KEY, bookings)
-    window.dispatchEvent(new Event('demo-bookings-changed'))
+export function updateBookings(action) {
+  return transact((state) => {
+    const { bookings, result } = action(state.bookings, state.inventory)
+    state.bookings = bookings
     return result
-  }
-  return navigator.locks ? navigator.locks.request(BOOKINGS_KEY, update) : update()
+  })
 }
-
 export function reserveDemo(input, userId) {
-  return updateBookings((previous) => {
+  return updateBookings((previous, inventory) => {
     requireSession(userId)
-    const result = createReservation(input, previous, userId)
+    const result = { ...createReservation(input, previous, userId, Date.now(), crypto.randomUUID(), inventory), sessionMode: 'manual', source: 'customer', history: [] }
     return { bookings: [...previous, result], result }
   })
 }
-
 export function cancelDemo(id, userId) {
   return updateBookings((previous) => {
     requireSession(userId)

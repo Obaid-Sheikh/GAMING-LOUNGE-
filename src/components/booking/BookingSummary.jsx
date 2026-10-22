@@ -1,17 +1,19 @@
-import { games, zones } from '../../data/catalog'
-import { money, stations } from '../../data/bookingCatalog'
+import useLoungeData from '../../hooks/useLoungeData'
+import { games } from '../../data/catalog'
+import { money } from '../../data/bookingCatalog'
 import { formatDate, formatTime, startOfSlot } from '../../lib/bookingRules'
 
 export default function BookingSummary({ booking }) {
+  const { inventory: { stations, zones } } = useLoungeData()
   const station = stations.find((item) => item.id === booking.stationId)
   const zone = zones.find((item) => item.id === booking.zoneId)
   const validTime = Number.isFinite(booking.start) && Number.isFinite(booking.end)
   const selectedDate = validTime ? booking.start : startOfSlot(booking.date ?? '', 0)
   return <dl className="booking-details">
     {booking.id && <div><dt>Demo reference</dt><dd className="booking-reference">{booking.id}</dd></div>}
-    <div><dt>Zone</dt><dd>{zone?.name ?? 'Choose a zone'}</dd></div>
-    <div><dt>Station</dt><dd>{station?.name ?? 'Choose a station'}</dd></div>
-    {station?.amenities && <div><dt>Room capacity</dt><dd>Up to {station.capacity} guests · Exclusive use</dd></div>}
+    <div><dt>Zone</dt><dd>{booking.zoneName ?? zone?.name ?? 'Choose a zone'}</dd></div>
+    <div><dt>Station</dt><dd>{booking.stationName ?? station?.name ?? 'Choose a station'}</dd></div>
+    {station?.zoneId === 'entertainment' && <div><dt>Room capacity</dt><dd>Up to {station.capacity} guests · Exclusive use</dd></div>}
     <div><dt>Date · IST</dt><dd>{Number.isFinite(selectedDate) ? formatDate(selectedDate) : 'Choose a date'}</dd></div>
     <div><dt>Session · IST</dt><dd>{validTime ? `${formatTime(booking.start)}–${formatTime(booking.end)}` : 'Choose a start time'}</dd></div>
     <div><dt>Duration</dt><dd>{booking.duration} {booking.duration === 1 ? 'hour' : 'hours'}</dd></div>

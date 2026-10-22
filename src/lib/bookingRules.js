@@ -1,5 +1,9 @@
+import { readInventory } from './mockRepository.js'
+import { currentMaintenance } from './inventory.js'
+import { addOnSubtotal, validAddOns } from './bookingSchema.js'
+export { addOnSubtotal, validAddOns, validBookings, normalizeBooking } from './bookingSchema.js'
 import { foodItems } from '../data/foodCatalog.js'
-import { BOOKING_WINDOW_DAYS, CLOSE_HOUR, DEMO_TIME_ZONE, DURATIONS, OPEN_HOUR, reservationFixtures, stationMaintenance, stations } from '../data/bookingCatalog.js'
+import { BOOKING_WINDOW_DAYS, CLOSE_HOUR, DEMO_TIME_ZONE, DURATIONS, OPEN_HOUR, reservationFixtures } from '../data/bookingCatalog.js'
 
 export function localDate(now = Date.now(), days = 0) {
   const date = new Date(now + days * 86400000)
@@ -18,35 +22,36 @@ export const overlaps = (start, end, other) => start < other.end && end > other.
 export const formatTime = (timestamp) => new Intl.DateTimeFormat('en-IN', { timeZone: DEMO_TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(timestamp)
 export const formatDate = (timestamp) => new Intl.DateTimeFormat('en-IN', { timeZone: DEMO_TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric' }).format(timestamp)
 
-export function bookingCandidate({ stationId, date, hour, duration, addOns = [], gameId = '' }) {
-  const station = stations.find((item) => item.id === stationId)
+export function bookingCandidate({ stationId, date, hour, duration, addOns = [], gameId = '' }, inventory = readInventory()) {
+  const station = inventory.stations.find((item) => item.id === stationId)
   const start = startOfSlot(date, hour)
-  const gamingPrice = (station?.rate ?? 0) * duration
+  const gamingPrice = Math.round(((station?.rate ?? 0) * duration + Number.EPSILON) * 100) / 100
   const foodSubtotal = addOnSubtotal(addOns)
-  return { stationId, zoneId: station?.zoneId, start, end: start + duration * 3600000, duration, gameId, addOns, gamingPrice, foodSubtotal, price: gamingPrice + foodSubtotal }
+  return { stationId, zoneId: station?.zoneId, start, end: start + duration * 3600000, duration, gameId, addOns, hourlyRate: station?.rate ?? 0, stationName: station?.name, zoneName: inventory.zones.find((zone) => zone.id === station?.zoneId)?.name, gamingPrice, foodSubtotal, price: gamingPrice + foodSubtotal }
 }
 
-export function availability(input, bookings, now = Date.now()) {
-  const station = stations.find((item) => item.id === input.stationId)
+export function availability(input, bookings, now = Date.now(), inventory = readInventory(), options = {}) {
+  const station = inventory.stations.find((item) => item.id === input.stationId)
   if (!station) return 'Choose a station'
-  if (!station.active || stationMaintenance.some((item) => item.stationId === station.id)) return 'Maintenance'
-  const periodProblem = sessionProblem(input, now)
+  if (currentMaintenance(inventory, station.id)) return 'Maintenance'
+  if (!station.active || station.archived || !inventory.zones.some((zone) => zone.id === station.zoneId && zone.active && !zone.archived)) return 'Station or zone inactive'
+  const periodProblem = sessionProblem(input, now, options)
   if (periodProblem) return periodProblem
-  const { start, end } = bookingCandidate(input)
-  const reservations = [...bookings, ...demoReservationsForDate(input.date)]
-  const conflict = reservations.find((booking) => booking.stationId === station.id && ['confirmed', 'pending'].includes(booking.status) && overlaps(start, end, booking))
+  const { start, end } = bookingCandidate(input, inventory)
+  const reservations = [...bookings, ...demoReservationsForDate(input.date, inventory)]
+  const conflict = reservations.find((booking) => booking.stationId === station.id && reservationBlocks(booking) && (overlaps(start, end, booking) || (booking.actualStart !== undefined && booking.actualEnd === undefined && start <= now && booking.actualStart < end)))
   if (conflict) return conflict.status === 'pending' ? 'Pending' : conflict.fixture ? 'Demo occupied' : 'Reserved in this browser'
   return ''
 }
 
-export function createReservation(input, bookings, userId, now = Date.now(), id = crypto.randomUUID()) {
+export function createReservation(input, bookings, userId, now = Date.now(), id = crypto.randomUUID(), inventory = readInventory(), options = {}) {
   if (!userId) throw new Error('Sign in to create a demo booking.')
-  const problem = availability(input, bookings, now)
+  const problem = availability(input, bookings, now, inventory, options)
   if (problem) throw new Error(`${problem}. Choose another station or time.`)
-  const station = stations.find((item) => item.id === input.stationId)
+  const station = inventory.stations.find((item) => item.id === input.stationId)
   if (input.gameId && !station.games.includes(input.gameId)) throw new Error('Choose a supported game.')
   const addOns = snapshotAddOns(input.addOns ?? [])
-  return { ...bookingCandidate({ ...input, addOns }), id, userId, status: 'confirmed', createdAt: now }
+  return { ...bookingCandidate({ ...input, addOns }, inventory), id, userId, status: 'confirmed', createdAt: now }
 }
 
 export function cancelReservation(booking, userId, now = Date.now()) {
@@ -57,25 +62,13 @@ export function cancelReservation(booking, userId, now = Date.now()) {
 
 export function bookingStatus(booking, now = Date.now()) {
   if (booking.status === 'cancelled') return 'Cancelled'
-  if (booking.end <= now) return 'Completed'
+  if (booking.status === 'completed' || booking.actualEnd !== undefined || booking.end <= now && booking.actualStart === undefined) return 'Completed'
+  if (booking.actualStart !== undefined) return 'In progress'
+  if (booking.status === 'pending') return 'Pending'
+  if (booking.sessionMode === 'manual') return booking.start <= now ? 'Awaiting start' : 'Upcoming'
   if (booking.start <= now) return 'In progress'
   return 'Upcoming'
 }
-
-export function validBookings(value) {
-  return Array.isArray(value) && value.every((item) => item && typeof item.id === 'string' && typeof item.userId === 'string'
-    && stations.some((station) => station.id === item.stationId && station.zoneId === item.zoneId)
-    && ['confirmed', 'pending', 'cancelled'].includes(item.status)
-    && Number.isFinite(item.start) && Number.isFinite(item.end) && item.end > item.start
-    && Number.isFinite(item.createdAt) && DURATIONS.includes(item.duration)
-    && item.end - item.start === item.duration * 3600000 && Number.isFinite(item.price) && item.price >= 0
-    && (item.addOns === undefined || validAddOns(item.addOns))
-    && (item.status !== 'cancelled' || Number.isFinite(item.cancelledAt)))
-    && new Set(value.map((item) => item.id)).size === value.length
-}
-
-export const addOnSubtotal = (items = []) => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-export const validAddOns = (items) => Array.isArray(items) && items.every((item) => item && typeof item.id === 'string' && typeof item.name === 'string' && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 99 && Number.isFinite(item.unitPrice) && item.unitPrice >= 0) && new Set(items.map((item) => item.id)).size === items.length
 
 export function snapshotAddOns(items) {
   if (!validAddOns(items)) throw new Error('Invalid food selection.')
@@ -86,37 +79,45 @@ export function snapshotAddOns(items) {
   })
 }
 
-export function normalizeBooking(booking) {
-  const addOns = booking.addOns ?? []
-  const foodSubtotal = addOnSubtotal(addOns)
-  return { ...booking, addOns, foodSubtotal, gamingPrice: booking.gamingPrice ?? booking.price - foodSubtotal }
-}
-
-export function stationStatus(input, bookings, now) {
-  const reason = availability(input, bookings, now)
+export function stationStatus(input, bookings, now, inventory = readInventory()) {
+  const reason = availability(input, bookings, now, inventory)
   if (!reason) return 'Available'
+  if (reason === 'Station or zone inactive') return 'Unavailable'
   if (reason === 'Maintenance' || reason === 'Pending') return reason
   if (['Demo occupied', 'Reserved in this browser'].includes(reason)) return 'Booked'
   return 'Choose period'
 }
 
-export function sessionProblem(input, now = Date.now()) {
-  if (!DURATIONS.includes(input.duration)) return 'Choose a valid duration'
-  const { start } = bookingCandidate(input)
+export function sessionProblem(input, now = Date.now(), options = {}) {
+  if (!(options.allowExtended ? Number.isInteger(input.duration) && input.duration >= 1 && input.duration <= CLOSE_HOUR - OPEN_HOUR : DURATIONS.includes(input.duration))) return 'Choose a valid duration'
+  const start = startOfSlot(input.date, input.hour)
   if (!Number.isFinite(start) || input.date < localDate(now) || input.date > localDate(now, BOOKING_WINDOW_DAYS)) return 'Choose a date within the next 30 days'
   if (input.hour < OPEN_HOUR || input.hour + input.duration > CLOSE_HOUR) return 'Outside demo hours'
-  if (start <= now) return 'Time has passed'
+  if (!options.allowStartedSlot && start <= now) return 'Time has passed'
   return ''
 }
 
 // Shared read-only expansion: fixture IDs are date-specific and never seeded into storage.
-export function demoReservationsForDate(date) {
+export function demoReservationsForDate(date, inventory = readInventory()) {
   return reservationFixtures.map((fixture, index) => {
     const addOns = (fixture.foodIds ?? []).map((id) => {
       const item = foodItems.find((item) => item.id === id)
       return { id, name: item.name, unitPrice: item.price, quantity: 1 }
     })
-    const candidate = bookingCandidate({ ...fixture, date, addOns })
-    return { ...candidate, id: `fixture-${date}-${index}`, userId: 'demo-fixture', customerName: 'Demo fixture (unassigned)', status: fixture.status, fixture: true, createdAt: startOfSlot(date, 10), paymentStatus: fixture.paymentStatus ?? 'unknown', paidAt: fixture.paymentStatus === 'paid' ? startOfSlot(date, 10) : undefined, foodOrderStatus: fixture.foodOrderStatus ?? 'unknown' }
+    const candidate = bookingCandidate({ ...fixture, date, addOns }, inventory)
+    const hourlyRate = fixture.hourlyRate ?? candidate.hourlyRate
+    const gamingPrice = Math.round(hourlyRate * fixture.duration * 100) / 100
+    return { ...candidate, hourlyRate, gamingPrice, price: gamingPrice + candidate.foodSubtotal, id: `fixture-${date}-${index}`, userId: 'demo-fixture', customerName: 'Demo fixture (unassigned)', status: fixture.status, fixture: true, createdAt: startOfSlot(date, 10), paymentStatus: fixture.paymentStatus ?? 'unknown', paidAt: fixture.paymentStatus === 'paid' ? startOfSlot(date, 10) : undefined, foodOrderStatus: fixture.foodOrderStatus ?? 'unknown' }
   })
+}
+
+export const reservationBlocks = (booking) => ['confirmed', 'pending'].includes(booking.status) || (booking.status === 'completed' && booking.actualEnd !== undefined)
+export const isSessionActive = (booking, now) => booking.status === 'confirmed' && booking.actualEnd === undefined && (booking.actualStart !== undefined && booking.actualStart <= now || (booking.sessionMode !== 'manual' && booking.start <= now && booking.end > now))
+
+export function extensionQuote(booking, endHour) {
+  const end = startOfSlot(localDate(booking.start), endHour)
+  const duration = (end - booking.start) / 3600000
+  const hourlyRate = booking.hourlyRate ?? booking.gamingPrice / booking.duration
+  const gamingPrice = Math.round((hourlyRate * duration + Number.EPSILON) * 100) / 100
+  return { end, duration, hourlyRate, gamingPrice, price: Math.round((gamingPrice + booking.foodSubtotal + Number.EPSILON) * 100) / 100 }
 }

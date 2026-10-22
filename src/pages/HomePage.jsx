@@ -1,7 +1,8 @@
-﻿import Button from '../components/Button'
+import useLoungeData from '../hooks/useLoungeData'
+import Button from '../components/Button'
 import SectionHeading from '../components/SectionHeading'
 import GamingZoneCard from '../components/GamingZoneCard'
-import { games, zones } from '../data/catalog'
+import { games } from '../data/catalog'
 
 const steps = [
   ['Pick your playground', 'Console, PC, or a group watch session. Find your kind of downtime.'],
@@ -15,6 +16,8 @@ const benefits = [
 ]
 
 export default function HomePage() {
+  const { inventory } = useLoungeData()
+  const zones = inventory.zones.filter((zone) => zone.active && !zone.archived).sort((a, b) => a.order - b.order)
   return <main id="main">
     <section className="hero-section container" aria-labelledby="hero-title">
       <div className="hero-copy"><p className="eyebrow"><span className="status-dot" /> YOUR NEXT HANGOUT. REIMAGINED.</p><h1 id="hero-title">Log off the ordinary.<br /><span>Level up</span><br />your downtime.</h1><p className="hero-description">Big plays. Friendly rivalries. Great company.<br />Find your escape at Gaming Lounge.</p><div className="hero-actions"><Button to="/booking">Book now <span aria-hidden="true">↗</span></Button><Button to="/#zones" variant="secondary">Explore the zones <span aria-hidden="true">↓</span></Button></div><p className="hero-note">Try demo booking. No real reservation or payment.</p></div>

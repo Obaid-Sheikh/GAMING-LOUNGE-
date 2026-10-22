@@ -1,5 +1,5 @@
+import useLoungeData from '../../hooks/useLoungeData'
 import { useState } from 'react'
-import { stations } from '../../data/bookingCatalog'
 import { bookingStatus, formatDate, formatTime } from '../../lib/bookingRules'
 import { cancelDemo } from '../../lib/bookingStore'
 import { useAuth } from '../../context/authContext'
@@ -7,6 +7,7 @@ import Button from '../Button'
 import BookingSummary from './BookingSummary'
 
 export default function BookingCard({ booking, now }) {
+  const { inventory: { stations } } = useLoungeData()
   const { user } = useAuth()
   const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
