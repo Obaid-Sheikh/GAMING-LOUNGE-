@@ -7,7 +7,7 @@ export default function RouteEffects() {
 
   useEffect(() => {
     const titles = { '/': 'Make time for play', '/login': 'Demo login', '/booking': 'Book a demo session', '/dashboard': 'Customer dashboard', '/my-bookings': 'My demo bookings' }
-    document.title = `${titles[pathname] ?? (pathname.startsWith('/booking/confirmation/') ? 'Demo reservation' : 'Page not found')} — Gaming Lounge`
+    document.title = `${titles[pathname] ?? (pathname.startsWith('/admin') ? 'Admin operations' : pathname.startsWith('/booking/confirmation/') ? 'Demo reservation' : 'Page not found')} — Gaming Lounge`
     // Route changes need to reset the viewport independently of anchor navigation.
     if (!window.location.hash) window.scrollTo(0, 0)
     if (previousPath.current !== pathname) {

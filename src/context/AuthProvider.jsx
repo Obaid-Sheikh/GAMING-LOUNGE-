@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { AuthContext } from './authContext'
 import { AUTH_KEY, readStored, writeStored } from '../lib/demoStorage'
 import { DEMO_USER } from '../data/bookingCatalog'
+import { DEMO_ADMIN, resolveDemoSession } from '../lib/demoAuth'
 
 function readSession() {
   try {
-    const session = readStored(AUTH_KEY, null, (value) => value?.id === DEMO_USER.id)
-    return { user: session ? DEMO_USER : null, error: '' }
+    const session = readStored(AUTH_KEY, null, (value) => Boolean(resolveDemoSession(value)))
+    return { user: resolveDemoSession(session), error: '' }
   } catch (error) {
     return { user: null, error: error.message }
   }
@@ -22,10 +23,11 @@ export default function AuthProvider({ children }) {
     return () => window.removeEventListener('storage', sync)
   }, [])
 
-  function login() {
+  function login(role = 'customer') {
     try {
-      writeStored(AUTH_KEY, { id: DEMO_USER.id })
-      setSession({ user: DEMO_USER, error: '' })
+      const profile = role === 'admin' ? DEMO_ADMIN : DEMO_USER
+      writeStored(AUTH_KEY, { id: profile.id })
+      setSession({ user: resolveDemoSession(profile), error: '' })
       return true
     } catch (error) {
       setSession({ user: null, error: error.message })
