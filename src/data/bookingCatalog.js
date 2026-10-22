@@ -30,6 +30,6 @@ export const stationMaintenance = [{ stationId: 'pc-02', reason: 'Demo equipment
 
 // Recurring demo reservations are expanded for the selected date, never written over customer records.
 export const reservationFixtures = stations.filter((station) => station.active).flatMap((station) => [
-  { stationId: station.id, hour: 12, duration: 1, status: 'confirmed' },
+  { stationId: station.id, hour: 12, duration: 1, status: 'confirmed', paymentStatus: station.id.endsWith('01') ? 'paid' : 'pending', foodIds: station.id === 'ps-01' ? ['fries', 'cold-coffee'] : [], foodOrderStatus: station.id === 'ps-01' ? 'pending' : undefined },
   ...(station.id.endsWith('02') ? [{ stationId: station.id, hour: 14, duration: 1, status: 'pending' }] : []),
 ])

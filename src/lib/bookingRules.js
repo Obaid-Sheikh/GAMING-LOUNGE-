@@ -33,7 +33,7 @@ export function availability(input, bookings, now = Date.now()) {
   const periodProblem = sessionProblem(input, now)
   if (periodProblem) return periodProblem
   const { start, end } = bookingCandidate(input)
-  const reservations = [...bookings, ...reservationFixtures.map((fixture) => ({ ...fixture, start: startOfSlot(input.date, fixture.hour), end: startOfSlot(input.date, fixture.hour + fixture.duration), fixture: true }))]
+  const reservations = [...bookings, ...demoReservationsForDate(input.date)]
   const conflict = reservations.find((booking) => booking.stationId === station.id && ['confirmed', 'pending'].includes(booking.status) && overlaps(start, end, booking))
   if (conflict) return conflict.status === 'pending' ? 'Pending' : conflict.fixture ? 'Demo occupied' : 'Reserved in this browser'
   return ''
@@ -107,4 +107,16 @@ export function sessionProblem(input, now = Date.now()) {
   if (input.hour < OPEN_HOUR || input.hour + input.duration > CLOSE_HOUR) return 'Outside demo hours'
   if (start <= now) return 'Time has passed'
   return ''
+}
+
+// Shared read-only expansion: fixture IDs are date-specific and never seeded into storage.
+export function demoReservationsForDate(date) {
+  return reservationFixtures.map((fixture, index) => {
+    const addOns = (fixture.foodIds ?? []).map((id) => {
+      const item = foodItems.find((item) => item.id === id)
+      return { id, name: item.name, unitPrice: item.price, quantity: 1 }
+    })
+    const candidate = bookingCandidate({ ...fixture, date, addOns })
+    return { ...candidate, id: `fixture-${date}-${index}`, userId: 'demo-fixture', customerName: 'Demo fixture (unassigned)', status: fixture.status, fixture: true, createdAt: startOfSlot(date, 10), paymentStatus: fixture.paymentStatus ?? 'unknown', paidAt: fixture.paymentStatus === 'paid' ? startOfSlot(date, 10) : undefined, foodOrderStatus: fixture.foodOrderStatus ?? 'unknown' }
+  })
 }
