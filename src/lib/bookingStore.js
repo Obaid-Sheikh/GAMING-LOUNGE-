@@ -8,15 +8,15 @@ function requireSession(userId) {
 }
 export function updateBookings(action) {
   return transact((state) => {
-    const { bookings, result } = action(state.bookings, state.inventory)
+    const { bookings, result } = action(state.bookings, state.inventory, state.menu)
     state.bookings = bookings
     return result
   })
 }
 export function reserveDemo(input, userId) {
-  return updateBookings((previous, inventory) => {
+  return updateBookings((previous, inventory, menu) => {
     requireSession(userId)
-    const result = { ...createReservation(input, previous, userId, Date.now(), crypto.randomUUID(), inventory), sessionMode: 'manual', source: 'customer', history: [] }
+    const result = { ...createReservation(input, previous, userId, Date.now(), crypto.randomUUID(), inventory, { menu, reviewFood: true }), sessionMode: 'manual', source: 'customer', history: [] }
     return { bookings: [...previous, result], result }
   })
 }

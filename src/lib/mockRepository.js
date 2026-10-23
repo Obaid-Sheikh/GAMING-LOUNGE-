@@ -1,24 +1,32 @@
 import { AUTH_KEY, BOOKINGS_KEY, readStored, writeStored } from './demoStorage.js'
 import { defaultInventory, validateInventory, text } from './inventory.js'
 import { normalizeBooking, validBookings } from './bookingSchema.js'
+import { migrateCommerce, validCommerce, syncBookingOrders } from './commerceSchema.js'
 import { resolveDemoSession } from './demoAuth.js'
 
 export const REPOSITORY_KEY = 'gaming-lounge:repository:v1'
 export const REPOSITORY_EVENT = 'demo-lounge-changed'
 export function validateRepository(value) {
   try {
-    if (!value || value.schemaVersion !== 1 || !Number.isInteger(value.revision) || value.revision < 0 || !validateInventory(value.inventory) || !validBookings(value.bookings, value.inventory) || !Array.isArray(value.activity)) return false
-    return value.activity.every((event) => event && text(event.id) && text(event.action) && Number.isFinite(event.at) && text(event.adminId) && text(event.target) && event.before !== undefined && event.after !== undefined)
+    if (!value || ![1, 2].includes(value.schemaVersion) || !Number.isInteger(value.revision) || value.revision < 0 || !validateInventory(value.inventory) || !validBookings(value.bookings, value.inventory) || !Array.isArray(value.activity)) return false
+    return (value.schemaVersion === 1 || validCommerce(value)) && value.activity.every((event) => event && text(event.id) && text(event.action) && Number.isFinite(event.at) && text(event.adminId) && text(event.target) && event.before !== undefined && event.after !== undefined)
   } catch { return false }
 }
 export function readRepository() {
   const inventory = defaultInventory()
-  if (typeof localStorage === 'undefined') return { schemaVersion: 1, revision: 0, inventory, bookings: [], activity: [] }
+  if (typeof localStorage === 'undefined') return migrateCommerce({ schemaVersion: 1, revision: 0, inventory, bookings: [], activity: [] })
   const saved = readStored(REPOSITORY_KEY, null, validateRepository)
-  if (saved) return { ...saved, bookings: saved.bookings.map(normalizeBooking) }
+  if (saved) {
+    const normalized = { ...saved, bookings: saved.bookings.map(normalizeBooking) }
+    const result = saved.schemaVersion === 1 ? migrateCommerce(normalized) : normalized
+    if (!validateRepository(result)) throw new Error('Migrated demo data is invalid. Nothing was saved.')
+    return result
+  }
   // A read never seeds or rewrites storage. The original booking key remains a migration backup.
   const bookings = readStored(BOOKINGS_KEY, [], (items) => validBookings(items, inventory)).map(normalizeBooking)
-  return { schemaVersion: 1, revision: 0, inventory, bookings, activity: [] }
+  const result = migrateCommerce({ schemaVersion: 1, revision: 0, inventory, bookings, activity: [] })
+  if (!validateRepository(result)) throw new Error('Migrated demo data is invalid. Nothing was saved.')
+  return result
 }
 export const readInventory = () => readRepository().inventory
 export function requireAdmin() {
@@ -35,8 +43,9 @@ export async function transact(change) {
   const update = () => {
     const state = structuredClone(readRepository())
     const result = change(state)
+    syncBookingOrders(state)
     state.revision += 1
-    if (!validateRepository(state)) throw new Error('The change produced invalid demo data. Nothing was saved.')
+    if (state.schemaVersion !== 2 || !validateRepository(state)) throw new Error('The change produced invalid demo data. Nothing was saved.')
     writeStored(REPOSITORY_KEY, state)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event(REPOSITORY_EVENT))

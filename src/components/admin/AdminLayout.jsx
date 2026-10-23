@@ -11,7 +11,8 @@ import AdminIcon from './AdminIcon'
 
 export default function AdminLayout() {
   const { user, logout, error: authError } = useAuth()
-  const { bookings, inventory, activity, revision, error } = useLoungeData()
+  const data = useLoungeData()
+  const { bookings, inventory, activity, revision, error, settings } = data
   const clock = useNow()
   const [preview, setPreview] = useState('now')
   const [navOpen, setNavOpen] = useState(false)
@@ -19,18 +20,18 @@ export default function AdminLayout() {
   const { pathname } = useLocation()
   const section = adminNavigation.find((item) => item.path ? pathname.startsWith(`/admin/${item.path}`) : pathname === '/admin')
   const now = preview === 'now' ? clock : startOfSlot(localDate(clock), Number(preview)) + 30 * 60000
-  const snapshot = operationalSnapshot(bookings, now, inventory)
+  const snapshot = operationalSnapshot(bookings, now, inventory, data)
   function closeNav() { setNavOpen(false); if (navOpen) toggle.current?.focus() }
   return <div className="admin-shell">
     <aside className={`admin-sidebar ${navOpen ? 'is-open' : ''}`} id="admin-navigation" onKeyDown={(event) => { if (event.key === 'Escape') { closeNav(); toggle.current?.focus() } }}>
       <Link to="/admin" className="ops-brand" onClick={closeNav}>
         <span className="ops-brand-mark">G<span>+</span></span>
-        <span>GAMING LOUNGE<small>OPERATIONS CONTROL</small></span>
+        <span>{settings.displayName}<small>OPERATIONS CONTROL</small></span>
       </Link>
       <nav aria-label="Administration">
         <p className="ops-nav-label">WORKSPACE</p>
-        {adminNavigation.map((item, index) => <div key={item.path}>
-          {index === 2 && <p className="ops-nav-label ops-nav-divider">MANAGEMENT</p>}
+        {adminNavigation.map((item) => <div key={item.path}>
+          {item.path === 'stations' && <p className="ops-nav-label ops-nav-divider">MANAGEMENT</p>}
           <NavLink to={`/admin${item.path ? `/${item.path}` : ''}`} end={!item.path} onClick={closeNav}>
             <AdminIcon name={item.icon} /><span>{item.label}</span>{item.upcoming && <small>Soon</small>}
           </NavLink>
@@ -68,7 +69,7 @@ export default function AdminLayout() {
           <p>The floor plan, recurring reservations, pricing, payments, and food orders are simulated. Customer reservations are saved in this browser. Role checks are frontend only.</p>
         </details>
         {authError && <p className="form-error" role="alert">{authError}</p>}
-        {error ? <section className="ops-panel" role="alert"><h2>Booking data is unavailable</h2><p>{error}</p><Button variant="secondary" onClick={() => window.location.reload()}>Retry loading</Button></section> : <Outlet context={{ snapshot, now, inventory, activity, revision, bookings, isPreview: preview !== 'now' }} />}
+        {error ? <section className="ops-panel" role="alert"><h2>Booking data is unavailable</h2><p>{error}</p><Button variant="secondary" onClick={() => window.location.reload()}>Retry loading</Button></section> : <Outlet context={{ ...data, snapshot, now, inventory, activity, revision, bookings, isPreview: preview !== 'now' }} />}
       </main>
     </div>
   </div>

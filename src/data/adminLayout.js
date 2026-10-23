@@ -1,8 +1,9 @@
 // Sample layout only. Zone and station coordinates can be adjusted independently of inventory.
 export const adminNavigation = [
   { path: '', label: 'Overview', icon: 'overview' },
+  { path: 'analytics', label: 'Analytics', icon: 'revenue' },
   { path: 'floor', label: 'Lounge Floor', icon: 'floor' },
-  ...[['stations', 'Stations & Zones'], ['bookings', 'Bookings'], ['games', 'Games Catalog'], ['food', 'Food & Beverages'], ['orders', 'Orders'], ['payments', 'Payments'], ['customers', 'Customers'], ['settings', 'Settings']].map(([path, label]) => ({ path, label, icon: ({ stations: 'pc', bookings: 'bookings', games: 'console', food: 'food', orders: 'bookings', payments: 'payments', customers: 'customers', settings: 'settings' })[path], upcoming: !['stations', 'bookings'].includes(path) })),
+  ...[['stations', 'Stations & Zones'], ['bookings', 'Bookings'], ['games', 'Games Catalog'], ['food', 'Food & Beverages'], ['orders', 'Orders'], ['payments', 'Payments'], ['customers', 'Customers'], ['settings', 'Settings']].map(([path, label]) => ({ path, label, icon: ({ stations: 'pc', bookings: 'bookings', games: 'console', food: 'food', orders: 'bookings', payments: 'payments', customers: 'customers', settings: 'settings' })[path], upcoming: path === 'games' })),
 ]
 export const floorZones = [
   { id: 'playstation', name: 'PlayStation Zone', gridArea: '1 / 1 / 2 / 2', columns: 3 },

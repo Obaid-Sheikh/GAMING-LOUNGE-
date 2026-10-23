@@ -1,3 +1,6 @@
+import useNow from '../../hooks/useNow'
+import CommerceSummary from '../../components/admin/CommerceSummary'
+import { commerceSnapshot } from '../../lib/commerceSelectors'
 import { Link, useOutletContext } from 'react-router'
 import { money } from '../../data/bookingCatalog'
 import { orderedZones } from '../../lib/inventory'
@@ -18,7 +21,10 @@ function BookingRows({ bookings, upcoming = false }) {
 }
 
 export default function AdminOverviewPage() {
-  const { snapshot, inventory } = useOutletContext()
+  const data = useOutletContext()
+  const { snapshot, inventory } = data
+  const clock = useNow()
+  const commerce = commerceSnapshot(data, clock)
   const floorZones = orderedZones(inventory).filter((zone) => !zone.archived)
   const stats = [
     ['Total stations', snapshot.stationViews.length, `Across ${floorZones.length} gaming zones`, 'neutral', 'pc'],
@@ -27,8 +33,8 @@ export default function AdminOverviewPage() {
     ['Reserved stations', snapshot.counts.Reserved, 'Pending holds or upcoming today', 'reserved', 'clock'],
     ['Under maintenance', snapshot.counts.Maintenance, 'Temporarily out of service', 'maintenance', 'settings'],
     ["Today's bookings", snapshot.todayBookings, 'Includes recurring demo fixtures', 'neutral', 'bookings'],
-    ['Pending payments', snapshot.pendingPayments, 'Explicit mock pending states only', 'reserved', 'payments'],
-    ["Today's revenue", money(snapshot.revenue), 'Mock paid transactions today only', 'available', 'revenue'],
+    ['Unpaid / partial', commerce.unpaid.length, 'Saved bookings with outstanding balances', 'reserved', 'payments'],
+    ["Today's collected", money(commerce.collectedToday), 'Successful saved receipts; fixtures excluded', 'available', 'revenue'],
   ]
   return <>
     {snapshot.counts.Inactive > 0 && <p className="ops-confirmation-note">{snapshot.counts.Inactive} station(s) are inactive or in an unavailable zone. These are counted separately from maintenance.</p>}
@@ -44,12 +50,13 @@ export default function AdminOverviewPage() {
       })}</div>
     </section>
 
+    <CommerceSummary data={data} />
     <div className="ops-dashboard-grid">
       <DashboardPanel title="Recent bookings" icon="bookings" subtitle="The latest activity in your lounge" count={snapshot.recent.length} action={<Link className="ops-text-link" to="/admin/bookings">Manage bookings <AdminIcon name="arrow" size={15} /></Link>}><BookingRows bookings={snapshot.recent} /></DashboardPanel>
       <div className="ops-dashboard-stack">
         <DashboardPanel title="Upcoming sessions" icon="clock" count={snapshot.upcoming.length}><BookingRows bookings={snapshot.upcoming} upcoming /></DashboardPanel>
         <DashboardPanel title="Pending food orders" icon="food" count={snapshot.foodOrders.length}>{snapshot.foodOrders.length ? <ul className="ops-order-list" tabIndex={snapshot.foodOrders.length > 2 ? 0 : undefined} aria-label="Pending food orders">{snapshot.foodOrders.map((booking) => <li key={booking.id}><span className="ops-order-symbol" aria-hidden="true"><AdminIcon name="food" size={20} /></span><div><Link className="ops-record-link" to={`/admin/bookings/${booking.id}`}>{booking.stationId.toUpperCase()} / {foodQuantity(booking)} items</Link><small>{booking.addOns.map((item) => `${item.quantity} x ${item.name}`).join(', ')}</small></div><StatusBadge status={foodStatus(booking)} /></li>)}</ul> : <EmptyState icon="food" title="All caught up">No food orders are waiting with a known fulfillment status.</EmptyState>}</DashboardPanel>
-        <DashboardPanel title="Stations requiring attention" icon="warning" count={snapshot.attention.length}>{snapshot.attention.length ? <ul className="ops-order-list" tabIndex={snapshot.attention.length > 2 ? 0 : undefined} aria-label="Stations requiring attention">{snapshot.attention.map((view) => <li key={view.station.id}><span className="ops-attention-symbol" aria-hidden="true"><AdminIcon name="settings" size={20} /></span><div><Link className="ops-record-link" to="/admin/floor">{view.station.id.toUpperCase()}</Link><small>{view.maintenance?.reason ?? (view.status === 'Inactive' ? 'Station or zone unavailable for bookings' : 'Active session has a pending mock payment')}</small></div><StatusBadge status={view.status} /></li>)}</ul> : <EmptyState title="Everything looks good">No stations currently require attention.</EmptyState>}</DashboardPanel>
+        <DashboardPanel title="Stations requiring attention" icon="warning" count={snapshot.attention.length}>{snapshot.attention.length ? <ul className="ops-order-list" tabIndex={snapshot.attention.length > 2 ? 0 : undefined} aria-label="Stations requiring attention">{snapshot.attention.map((view) => <li key={view.station.id}><span className="ops-attention-symbol" aria-hidden="true"><AdminIcon name="settings" size={20} /></span><div><Link className="ops-record-link" to="/admin/floor">{view.station.id.toUpperCase()}</Link><small>{view.maintenance?.reason ?? (view.status === 'Inactive' ? 'Station or zone unavailable for bookings' : 'Active session has an outstanding mock balance')}</small></div><StatusBadge status={view.status} /></li>)}</ul> : <EmptyState title="Everything looks good">No stations currently require attention.</EmptyState>}</DashboardPanel>
       </div>
     </div>
   </>

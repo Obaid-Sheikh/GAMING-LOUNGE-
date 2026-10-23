@@ -1,4 +1,4 @@
-import { readInventory } from './mockRepository.js'
+import { readInventory, readRepository } from './mockRepository.js'
 import { currentMaintenance } from './inventory.js'
 import { addOnSubtotal, validAddOns } from './bookingSchema.js'
 export { addOnSubtotal, validAddOns, validBookings, normalizeBooking } from './bookingSchema.js'
@@ -50,7 +50,7 @@ export function createReservation(input, bookings, userId, now = Date.now(), id 
   if (problem) throw new Error(`${problem}. Choose another station or time.`)
   const station = inventory.stations.find((item) => item.id === input.stationId)
   if (input.gameId && !station.games.includes(input.gameId)) throw new Error('Choose a supported game.')
-  const addOns = snapshotAddOns(input.addOns ?? [])
+  const addOns = snapshotAddOns(input.addOns ?? [], options.menu ?? readRepository().menu, options.reviewFood)
   return { ...bookingCandidate({ ...input, addOns }, inventory), id, userId, status: 'confirmed', createdAt: now }
 }
 
@@ -70,11 +70,12 @@ export function bookingStatus(booking, now = Date.now()) {
   return 'Upcoming'
 }
 
-export function snapshotAddOns(items) {
+export function snapshotAddOns(items, menu = readRepository().menu, reviewFood = false) {
   if (!validAddOns(items)) throw new Error('Invalid food selection.')
   return items.map((item) => {
-    const product = foodItems.find((product) => product.id === item.id)
-    if (!product) throw new Error('This food item is unavailable.')
+    const product = menu.find((product) => product.id === item.id)
+    if (!product || product.archived || !product.available) throw new Error('This food item is unavailable. Edit your food selection.')
+    if (reviewFood && (item.unitPrice !== product.price || item.name !== product.name)) throw new Error('The food menu changed. Reopen food selection and review the current prices before saving.')
     return { id: product.id, name: product.name, quantity: item.quantity, unitPrice: product.price }
   })
 }

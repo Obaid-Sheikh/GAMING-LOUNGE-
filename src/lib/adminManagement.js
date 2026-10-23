@@ -1,3 +1,4 @@
+import { applyCommerceOperation } from './commerceManagement.js'
 import { audit, requireAdmin, transact } from './mockRepository.js'
 import { validateInventory, validateStation, nextPosition, currentMaintenance, text } from './inventory.js'
 import { availability, bookingCandidate, createReservation, demoReservationsForDate, formatTime, isSessionActive, localDate, overlaps, reservationBlocks, startOfSlot, extensionQuote } from './bookingRules.js'
@@ -32,6 +33,7 @@ export function applyAdminOperation(state, admin, operation, now = Date.now()) {
   if (admin?.role !== 'admin') throw new Error('A demo administrator session is required.')
   if (operation.expectedRevision !== undefined && operation.expectedRevision !== state.revision) throw new Error('The lounge changed in another view. Close this form and reopen it before saving.')
   const { type, id, values = {} } = operation
+  if (/^(menu|order|payment|settings)\./.test(type)) return applyCommerceOperation(state, admin, operation, now)
   if (type === 'station.save') {
     const existing = id ? state.inventory.stations.find((station) => station.id === id) : null
     if (id && !existing) throw new Error('Station not found.')
@@ -100,7 +102,7 @@ export function applyAdminOperation(state, admin, operation, now = Date.now()) {
   }
   if (type === 'walk-in.create') {
     if (!text(values.customerName, 100) || typeof (values.customerContact ?? '') !== 'string' || (values.customerContact ?? '').length > 150) throw new Error('Enter a customer display name and valid optional contact information.')
-    const booking = { ...createReservation(values, state.bookings, 'walk-in', now, crypto.randomUUID(), state.inventory, { allowStartedSlot: true }), source: 'walk-in', sessionMode: 'manual', customerName: values.customerName.trim(), customerContact: (values.customerContact ?? '').trim(), history: [] }
+    const booking = { ...createReservation(values, state.bookings, 'walk-in', now, crypto.randomUUID(), state.inventory, { allowStartedSlot: true, menu: state.menu, reviewFood: state.schemaVersion === 2 }), source: 'walk-in', sessionMode: 'manual', customerName: values.customerName.trim(), customerContact: (values.customerContact ?? '').trim(), history: [] }
     if (booking.end <= now || localDate(booking.start) < localDate(now)) throw new Error('Choose a session that has not ended.')
     state.bookings.push(booking)
     audit(state, admin, type, booking.id, null, booking, now)

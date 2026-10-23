@@ -1,0 +1,11 @@
+import useNow from '../../hooks/useNow'
+import { useState } from 'react'
+import { Link, useOutletContext } from 'react-router'
+import { customerDirectory } from '../../lib/commerceSelectors'
+import { formatDate, formatTime } from '../../lib/bookingRules'
+import { money } from '../../data/bookingCatalog'
+export default function AdminCustomersPage() {
+  const clock = useNow(); const data = useOutletContext(); const [query, setQuery] = useState('')
+  const rows = customerDirectory(data, clock).filter((person) => `${person.id} ${person.name}`.toLowerCase().includes(query.toLowerCase()))
+  return <><p className="ops-confirmation-note">Directory derived from saved bookings, not an account registry. Each walk-in booking has its own identity, even when names match. Values include retained cancelled bookings; upcoming and completed counts use explicit reservation/session data.</p><div className="ops-filters"><label>Search customers<input value={query} onChange={(e) => setQuery(e.target.value)} /></label></div><div className="ops-resource-grid">{rows.map((person) => <article className="ops-panel ops-wrap" key={person.id}><h2>{person.name}</h2><p className="ops-muted">{person.walkIn ? 'Walk-in guest' : 'Authenticated demo customer'} / {person.id}</p><dl className="ops-detail-list"><div><dt>Bookings</dt><dd>{person.bookings.length}</dd></div><div><dt>Upcoming</dt><dd>{person.upcoming}</dd></div><div><dt>Completed sessions</dt><dd>{person.completed}</dd></div><div><dt>Total booked value</dt><dd>{money(person.value)}</dd></div><div><dt>Payments / refunds</dt><dd>{money(person.paid)} / {money(person.refunds)}</dd></div><div><dt>Outstanding incl. cancellations</dt><dd>{money(person.outstanding)}</dd></div></dl><details className="ops-activity-log"><summary>Inspect booking history</summary><ul className="ops-commerce-list">{person.bookings.sort((a, b) => b.start - a.start).map((booking) => <li key={booking.id}><div><Link className="ops-text-link" to={`/admin/bookings/${booking.id}`}>{booking.stationId.toUpperCase()} / {booking.status}</Link><small>{formatDate(booking.start)} / {formatTime(booking.start)} IST</small><small>{money(booking.price)}</small></div></li>)}</ul></details></article>)}</div>{!rows.length && <p className="ops-panel" role="status">No customers with saved bookings match your search.</p>}</>
+}

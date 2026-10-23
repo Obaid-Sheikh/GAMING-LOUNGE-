@@ -1,4 +1,10 @@
-﻿import { BrowserRouter, Outlet, Route, Routes } from 'react-router'
+import AdminFoodPage from './pages/admin/AdminFoodPage'
+import AdminOrdersPage from './pages/admin/AdminOrdersPage'
+import AdminPaymentsPage from './pages/admin/AdminPaymentsPage'
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage'
+import AdminCustomersPage from './pages/admin/AdminCustomersPage'
+import AdminSettingsPage from './pages/admin/AdminSettingsPage'
+import { BrowserRouter, Outlet, Route, Routes } from 'react-router'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import HomePage from './pages/HomePage'
@@ -47,6 +53,12 @@ export default function App() {
           <Route path="floor" element={<AdminFloorPage />} />
           <Route path="stations" element={<AdminStationsPage />} />
           <Route path="bookings" element={<AdminBookingsPage />} />
+          <Route path="food" element={<AdminFoodPage />} />
+          <Route path="orders" element={<AdminOrdersPage />} />
+          <Route path="payments" element={<AdminPaymentsPage />} />
+          <Route path="analytics" element={<AdminAnalyticsPage />} />
+          <Route path="customers" element={<AdminCustomersPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="bookings/:id" element={<AdminBookingPage />} />
           <Route path="*" element={<AdminUpcomingPage />} />
         </Route>
