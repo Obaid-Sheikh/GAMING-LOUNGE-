@@ -1,10 +1,12 @@
 import { AUTH_KEY, readStored } from './demoStorage.js'
 import { cancelReservation, createReservation } from './bookingRules.js'
 import { readRepository, transact } from './mockRepository.js'
+import { resolveDemoSession } from './demoAuth.js'
 export const readBookings = () => readRepository().bookings
 function requireSession(userId) {
   const session = readStored(AUTH_KEY, null, (value) => typeof value?.id === 'string')
-  if (!session || session.id !== userId || session.id === 'demo-admin') throw new Error('Your demo session has ended. Sign in again to continue.')
+  const user = resolveDemoSession(session)
+  if (user?.role !== 'customer' || user.id !== userId) throw new Error('Your demo session has ended. Sign in again to continue.')
 }
 export function updateBookings(action) {
   return transact((state) => {
